@@ -1,444 +1,396 @@
 import tkinter as tk
 from time import gmtime, strftime
-from tkinter import filedialog
 from tkinter import messagebox
 import string
 import random
-import pywhatkit
-import shutil
+import os
 
+class TinkaBankApp(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Tinka Bank")
+        self.configure(background='#29c5f6')
+        self.frames = {}
+        self.create_frames()
+        self.show_frame("MainMenu")
 
-def is_number(s):
-    try:
-        float(s)
-        return 1
-    except ValueError:
-        return 0
+    def create_frames(self):
+        for F in (MainMenu, Login, CreateAccount, LoggedInMenu, DepositAmount, WithdrawAmount, TransactionHistory):
+            page_name = F.__name__
+            frame = F(parent=self, controller=self)
+            self.frames[page_name] = frame
+            frame.grid(row=0, column=0, sticky="nsew")
 
+    def show_frame(self, page_name):
+        frame = self.frames[page_name]
+        frame.tkraise()
 
-def check_acc_nmb(num, pin):
-    try:
-        with open(num + ".txt", 'r') as fpin:
-            stored_pin = fpin.readline().strip()
-            if stored_pin != pin:
-                messagebox.showinfo("Error", "Invalid Credentials!\nTry Again!")
-                return False
-    except FileNotFoundError:
-        messagebox.showinfo("Error", "Invalid Credentials!\nTry Again!")
-        return False
-    return True
+class MainMenu(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+        self.configure(background='#29c5f6')
 
+        logo_image = tk.PhotoImage(file="918b31fa5a4b49a982796ff43e74db92 (1).png")
+        logo_label = tk.Label(self, image=logo_image, bg='#29c5f6')
+        logo_label.image = logo_image
+        logo_label.pack(pady=10)
 
-def home_return(master):
-    master.destroy()
-    Main_Menu()
+        fr_buttons = tk.Frame(self, bg="#29c5f6")
+        fr_buttons.pack(pady=20)
 
+        imgc = tk.PhotoImage(file="new.gif.png").subsample(2, 2)
+        imglog = tk.PhotoImage(file="login.gif.png").subsample(2, 2)
 
-def generate_password(length=12):
-    characters = string.ascii_letters + string.digits + string.punctuation
-    return ''.join(random.choice(characters) for _ in range(length))
+        b1 = tk.Button(fr_buttons, image=imgc, command=lambda: controller.show_frame("CreateAccount"))
+        b1.image = imgc
+        b2 = tk.Button(fr_buttons, image=imglog, command=lambda: controller.show_frame("Login"))
+        b2.image = imglog
 
+        b1.grid(row=0, column=0, padx=20)
+        b2.grid(row=0, column=1, padx=20)
 
-def write(master, name, oc, pin):
-    if is_number(name) or is_number(oc) == 0 or len(pin) != 12 or name == "":
-        messagebox.showinfo("Error", "Invalid Credentials\nPlease try again.")
-        master.destroy()
-        return
+        clock_label = tk.Label(self, font=("Courier", 20), fg="white", bg="black")
+        clock_label.pack(pady=10)
+        ClockUpdater(clock_label).update_clock()
 
-    with open("Accnt_Record.txt", 'r') as f1:
-        accnt_no = int(f1.readline().strip())
-    accnt_no += 1
+class Login(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+        self.configure(bg="#29c5f6")
 
-    with open("Accnt_Record.txt", 'w') as f1:
-        f1.write(str(accnt_no))
+        l_title = tk.Message(self, text="TINKA BANK", relief="raised", width=2000, padx=600, pady=0, fg="white",
+                             bg="black", justify="center", anchor="center")
+        l_title.config(font=("Courier", "50", "bold"))
+        l_title.pack(side="top", pady=(5, 10))
 
-    with open(str(accnt_no) + ".txt", "w") as fdet:
-        fdet.write(pin + "\n")
-        fdet.write(oc + "\n")
-        fdet.write(str(accnt_no) + "\n")
-        fdet.write(name + "\n")
+        l1 = tk.Label(self, text="Enter Name:", relief="raised")
+        l1.pack(side="top", pady=(8, 4))
+        self.e1 = tk.Entry(self)
+        self.e1.pack(side="top", pady=(0, 5))
 
-    with open(str(accnt_no) + "-rec.txt", 'w') as frec:
-        frec.write("Date                             Credit      Debit     Balance\n")
-        frec.write(str(strftime("[%Y-%m-%d] [%H:%M:%S]  ", gmtime())) + "    " + oc + "             " + oc + "\n")
+        l2 = tk.Label(self, text="Enter account number:", relief="raised")
+        l2.pack(side="top", pady=(8, 4))
+        self.e2 = tk.Entry(self)
+        self.e2.pack(side="top", pady=(0, 5))
 
-    messagebox.showinfo("Details", "Your Account Number is: " + str(accnt_no))
-    master.destroy()
+        l3 = tk.Label(self, text="Enter your Password:", relief="raised")
+        l3.pack(side="top", pady=(8, 4))
+        self.e3 = tk.Entry(self, show="*")
+        self.e3.pack(side="top", pady=(0, 10))
 
+        b = tk.Button(self, text="Submit", command=self.check_log_in)
+        b.pack(side="top", pady=(5, 5))
 
-def debit_write(master, amt, accnt, name):
-    if is_number(amt) == 0:
-        messagebox.showinfo("Error", "Invalid Credentials\nPlease try again.")
-        master.destroy()
-        return
+        b1 = tk.Button(self, text="HOME", relief="raised", bg="black", fg="white", command=lambda: controller.show_frame("MainMenu"))
+        b1.pack(side="top", pady=(8, 8))
 
-    fdet = open(accnt + ".txt", 'r')
-    pin = fdet.readline()
-    camt = int(fdet.readline())
-    fdet.close()
-    if int(amt) > camt:
-        messagebox.showinfo("Error!!", "You dont have that amount left in your account\nPlease try again.")
-    else:
-        amti = int(amt)
-        cb = camt - amti
-        fdet = open(accnt + ".txt", 'w')
-        fdet.write(pin)
-        fdet.write(str(cb) + "\n")
-        fdet.write(accnt + "\n")
-        fdet.write(name + "\n")
-        fdet.close()
-        frec = open(str(accnt) + "-rec.txt", 'a+')
-        frec.write(str(strftime("[%Y-%m-%d] [%H:%M:%S]  ", gmtime())) + "     " + "              " + str(
-            amti) + "              " + str(cb) + "\n")
-        frec.close()
-        messagebox.showinfo("Operation Successful!!", "Amount Debited Successfully!!")
-        master.destroy()
-        return
+        back_button = tk.Button(self, text="Back", command=lambda: controller.show_frame("MainMenu"))
+        back_button.pack(side="top", pady=(8, 8))
 
+    def check_log_in(self):
+        name = self.e1.get().strip()
+        acc_num = self.e2.get().strip()
+        pin = self.e3.get().strip()
+        if not check_acc_nmb(acc_num, pin):
+            messagebox.showinfo("Error", "Invalid Credentials! Try Again!")
+            self.controller.show_frame("MainMenu")
+            return
 
-def Cr_Amt(accnt, name):
-    creditwn = tk.Tk()
-    creditwn.geometry("600x300")
-    creditwn.title("Deposit Amount")
-    creditwn.configure(bg="#29c5f6")
-    fr1 = tk.Frame(creditwn, bg="black")
-    l_title = tk.Message(creditwn, text="TINKA BANK", relief="raised", width=2000, padx=600, pady=0, fg="white",
-                         bg="black", justify="center", anchor="center")
-    l_title.config(font=("Courier", "50", "bold"))
-    l_title.pack(side="top", pady=(5, 10))
-    l1 = tk.Label(creditwn, relief="raised", text="Enter Amount to be Deposited: ")
-    e1 = tk.Entry(creditwn, relief="raised")
-    l1.pack(side="top", pady=(5, 10))
-    e1.pack(side="top", pady=(0, 10))
-    b = tk.Button(creditwn, text="Debit", relief="raised", command=lambda: crdt_write(creditwn, e1.get(), accnt, name))
-    b.pack(side="top", pady=(5, 5))
-    creditwn.bind("<Return>", lambda x: crdt_write(creditwn, e1.get(), accnt, name))
-
-
-def De_Amt(accnt, name):
-    debitwn = tk.Tk()
-    debitwn.geometry("600x300")
-    debitwn.title("Withdraw Amount")
-    debitwn.configure(bg="#29c5f6")
-    fr1 = tk.Frame(debitwn, bg="#29c5f6")
-    l_title = tk.Message(debitwn, text="TINKA BANK", relief="raised", width=2000, padx=600, pady=0, fg="white",
-                         bg="black", justify="center", anchor="center")
-    l_title.config(font=("Courier", "50", "bold"))
-    l_title.pack(side="top", pady=(5, 10))
-    l1 = tk.Label(debitwn, relief="raised", text="Enter Amount to be Withdrawn: ")
-    e1 = tk.Entry(debitwn, relief="raised")
-    l1.pack(side="top", pady=(5, 10))
-    e1.pack(side="top", pady=(0, 10))
-    b = tk.Button(debitwn, text="Debit", relief="raised", command=lambda: debit_write(debitwn, e1.get(), accnt, name))
-    b.pack(side="top", pady=(5, 5))
-    debitwn.bind("<Return>", lambda x: debit_write(debitwn, e1.get(), accnt, name))
-
-
-def disp_bal(accnt):
-    fdet = open(accnt + ".txt", 'r')
-    fdet.readline()
-    bal = fdet.readline()
-    fdet.close()
-    messagebox.showinfo("Balance", bal)
-
-
-def disp_tr_hist(accnt):
-    def download_history():
-        file_path = filedialog.asksaveasfilename(defaultextension=".txt",
-                                                 filetypes=[("Text files", "*.txt"), ("All files", "*.*")])
-        if file_path:
-            try:
-                with open(accnt + "-rec.txt", 'r') as frec:
-                    content = frec.read()
-                with open(file_path, 'w') as fsave:
-                    fsave.write(content)
-                print("Transaction history saved to:", file_path)
-            except FileNotFoundError:
-                print("No transaction history found for account:", accnt)
-
-    def send_to_whatsapp():
-        try:
-            # Copy the transaction history file to a temporary file
-            shutil.copyfile(accnt + "-rec.txt", "temp.txt")
-            # Send the content of the temporary file to WhatsApp
-            with open("temp.txt", 'r') as temp_file:
-                content = temp_file.read()
-            # Replace the phone number with the desired WhatsApp number
-            pywhatkit.sendwhatmsg("+27614536326", content, 11, 27)
-            print("Successfully Sent!")
-        except Exception as e:
-            print("An Unexpected Error:", e)
-
-    disp_wn = tk.Tk()
-    disp_wn.geometry("900x600")
-    disp_wn.title("Tinka Bank Transaction History")
-    disp_wn.configure(bg="#29c5f6")
-
-    # Display the transaction history
-    l_title = tk.Message(disp_wn, text="TINKA BANK", relief="raised", width=2000, padx=600, pady=0, fg="white",
-                         bg="black", justify="center", anchor="center")
-    l_title.config(font=("Courier", "50", "bold"))
-    l_title.pack(side="top", pady=(10, 20))
-
-    l1 = tk.Message(disp_wn, text="Your Transaction History:", padx=100, pady=20, width=1000, bg="black", fg="white",
-                    relief="raised")
-    l1.pack(side="top", pady=(10, 20))
-
-    fr2 = tk.Frame(disp_wn)
-    fr2.pack(side="top", padx=10, pady=10)
-
-    text_frame = tk.Frame(disp_wn)
-    text_frame.pack(side="top", fill="both", expand=True, padx=10, pady=10)
-
-    scrollbar = tk.Scrollbar(text_frame)
-    scrollbar.pack(side="right", fill="y")
-
-    text = tk.Text(text_frame, wrap="none", yscrollcommand=scrollbar.set, font=("Courier", 12), relief="raised",
-                   bg="white")
-    text.pack(side="left", fill="both", expand=True)
-    scrollbar.config(command=text.yview)
-
-    try:
-        with open(accnt + "-rec.txt", 'r') as frec:
-            for line in frec:
-                text.insert(tk.END, line)
-    except FileNotFoundError:
-        text.insert(tk.END, "No transaction history found for account: " + accnt)
-
-    text.config(state=tk.DISABLED)
-
-    b_download = tk.Button(disp_wn, text="Download Transaction History", relief="raised", command=download_history)
-    b_download.pack(side="bottom", pady=(10, 10))
-
-    # Add "Send to WhatsApp" button
-    b_whatsapp = tk.Button(disp_wn, text="Send to WhatsApp", relief="raised", command=send_to_whatsapp)
-    b_whatsapp.pack(side="bottom", pady=(10, 10))
-    b_quit = tk.Button(disp_wn, text="Quit", relief="raised", command=disp_wn.destroy)
-    b_quit.pack(side="bottom", pady=(10, 20))
-
-
-def create_test_record():
-    with open("12345-rec.txt", "w") as file:
-        file.write("Date       | Transaction | Amount\n")
-        file.write("2023-05-01 | Deposit     | 1000\n")
-        file.write("2023-05-02 | Withdrawal  | 500\n")
-
-
-def logged_in_menu(accnt, name):
-    rootwn = tk.Tk()
-    rootwn.geometry("1600x500")
-    rootwn.title("TINKA BANK-" + name)
-    rootwn.configure(background='#29c5f6')
-    fr1 = tk.Frame(rootwn)
-    fr1.pack(side="top")
-    l_title = tk.Message(rootwn, text="TINKA BANK", relief="raised", width=2000, padx=600, pady=0, fg="white",
-                         bg="black", justify="center", anchor="center")
-    l_title.config(font=("Courier", "50", "bold"))
-    l_title.pack(side="top")
-    label = tk.Label(text="Logged in as: " + name, relief="raised", bg="black", fg="white", anchor="center",
-                     justify="center")
-    label.pack(side="top")
-    img2 = tk.PhotoImage(file="credit.gif.png")
-    myimg2 = img2.subsample(2, 2)
-    img3 = tk.PhotoImage(file="debit.gif.png")
-    myimg3 = img3.subsample(2, 2)
-    img4 = tk.PhotoImage(file="balance1.gif.png")
-    myimg4 = img4.subsample(2, 2)
-    img5 = tk.PhotoImage(file="transaction.gif.png")
-    myimg5 = img5.subsample(2, 2)
-    b2 = tk.Button(image=myimg2, command=lambda: Cr_Amt(accnt, name))
-    b2.image = myimg2
-    b3 = tk.Button(image=myimg3, command=lambda: De_Amt(accnt, name))
-    b3.image = myimg3
-    b4 = tk.Button(image=myimg4, command=lambda: disp_bal(accnt))
-    b4.image = myimg4
-    b5 = tk.Button(image=myimg5, command=lambda: disp_tr_hist(accnt))
-    b5.image = myimg5
-
-    img6 = tk.PhotoImage(file="logout.gif.png")
-    myimg6 = img6.subsample(2, 2)
-    b6 = tk.Button(image=myimg6, relief="raised", command=lambda: logout(rootwn))
-    b6.image = myimg6
-
-    b2.place(x=100, y=150)
-    b3.place(x=100, y=220)
-    b4.place(x=900, y=150)
-    b5.place(x=900, y=220)
-    b6.place(x=500, y=400)
-
-
-def logout(master):
-    messagebox.showinfo("Logged Out", "You Have Been Successfully Logged Out!!")
-    master.destroy()
-    Main_Menu()
-
-
-def check_log_in(master, name, acc_num, pin):
-    if not check_acc_nmb(acc_num, pin):
-        master.destroy()
-        Main_Menu()
-        return
-
-    if is_number(name):
-        messagebox.showinfo("Error", "Invalid Credentials\nPlease try again.")
-        master.destroy()
-        Main_Menu()
-    else:
-        master.destroy()
-        logged_in_menu(acc_num, name)
-
-
-def log_in(master):
-    master.destroy()
-    loginwn = tk.Tk()
-    loginwn.geometry("600x300")
-    loginwn.title("Log in")
-    loginwn.configure(bg="#29c5f6")
-    fr1 = tk.Frame(loginwn, bg="white")
-    l_title = tk.Message(loginwn, text="TINKA BANK", relief="raised", width=2000, padx=600, pady=0, fg="white",
-                         bg="black", justify="center", anchor="center")
-    l_title.config(font=("Courier", "50", "bold"))
-    l_title.pack(side="top", pady=(5, 10))
-    l1 = tk.Label(loginwn, text="Enter Name:", relief="raised")
-    l1.pack(side="top", pady=(8, 4))
-    e1 = tk.Entry(loginwn)
-    e1.pack(side="top", pady=(0, 5))
-    l2 = tk.Label(loginwn, text="Enter account number:", relief="raised")
-    l2.pack(side="top", pady=(8, 4))
-    e2 = tk.Entry(loginwn)
-    e2.pack(side="top", pady=(0, 5))
-    l3 = tk.Label(loginwn, text="Enter your Password:", relief="raised")
-    l3.pack(side="top", pady=(8, 4))
-    e3 = tk.Entry(loginwn, show="*")
-    e3.pack(side="top", pady=(0, 10))
-    b = tk.Button(loginwn, text="Submit",
-                  command=lambda: check_log_in(loginwn, e1.get().strip(), e2.get().strip(), e3.get().strip()))
-    b.pack(side="top", pady=(5, 5))
-    b1 = tk.Button(text="HOME", relief="raised", bg="black", fg="white", command=lambda: home_return(loginwn))
-    b1.pack(side="top", pady=(8, 8))
-    loginwn.bind("<Return>", lambda x: check_log_in(loginwn, e1.get().strip(), e2.get().strip(), e3.get().strip()))
-
-
-def Create():
-    def toggle_password_visibility():
-        if e3.cget('show') == '*':
-            e3.config(show='')
-            show_password_button.config(text='Hide Password')
+        if is_number(name):
+            messagebox.showinfo("Error", "Invalid Credentials\nPlease try again.")
+            self.controller.show_frame("MainMenu")
         else:
-            e3.config(show='*')
-            show_password_button.config(text='Show Password')
+            self.controller.show_frame("LoggedInMenu")
+            self.controller.frames["LoggedInMenu"].set_user_info(acc_num, name)
 
-    crwn = tk.Tk()
-    crwn.geometry("600x300")
-    crwn.title("Create Account")
-    crwn.configure(bg="#29c5f6")
-    fr1 = tk.Frame(crwn, bg="white")
-    l_title = tk.Message(crwn, text="TINKA BANK", relief="raised", width=2000, padx=600, pady=0, fg="white", bg="black",
-                         justify="center", anchor="center")
-    l_title.config(font=("Courier", "50", "bold"))
-    l_title.pack(side="top", pady=(10, 20))
-    l1 = tk.Label(crwn, text="Enter Name:", relief="raised")
-    l1.pack(side="top", pady=(8, 4))
-    e1 = tk.Entry(crwn)
-    e1.pack(side="top", pady=(0, 5))
-    l2 = tk.Label(crwn, text="Enter Opening Deposit:", relief="raised")
-    l2.pack(side="top", pady=(8, 4))
-    e2 = tk.Entry(crwn)
-    e2.pack(side="top", pady=(0, 5))
-    l3 = tk.Label(crwn, text="Enter Desired Password:", relief="raised")
-    l3.pack(side="top", pady=(8, 4))
-    e3 = tk.Entry(crwn, show="*")
-    e3.pack(side="top", pady=(8, 8))
-    generate_password_button = tk.Button(crwn, text="Generate Password",
-                                         command=lambda: generate_and_display_password(e3))
-    generate_password_button.pack(side="top", pady=(5, 5))
+class CreateAccount(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+        self.configure(bg="#29c5f6")
 
-    show_password_button = tk.Button(crwn, text="Show Password", command=toggle_password_visibility)
-    show_password_button.pack(side="top", pady=(5, 5))
+        l_title = tk.Message(self, text="TINKA BANK", relief="raised", width=2000, padx=600, pady=0, fg="white",
+                             bg="black", justify="center", anchor="center")
+        l_title.config(font=("Courier", "50", "bold"))
+        l_title.pack(side="top", pady=(10, 20))
 
-    b = tk.Button(crwn, text="Submit",
-                  command=lambda: write(crwn, e1.get().strip(), e2.get().strip(), e3.get().strip()))
-    b.pack(side="top")
-    crwn.bind("<Return>", lambda x: write(crwn, e1.get().strip(), e2.get().strip(), e3.get().strip()))
-    crwn.mainloop()
+        l1 = tk.Label(self, text="Enter Name:", relief="raised")
+        l1.pack(side="top", pady=(8, 4))
+        self.e1 = tk.Entry(self)
+        self.e1.pack(side="top", pady=(0, 5))
+
+        l2 = tk.Label(self, text="Enter Opening Deposit:", relief="raised")
+        l2.pack(side="top", pady=(8, 4))
+        self.e2 = tk.Entry(self)
+        self.e2.pack(side="top", pady=(0, 5))
+
+        l3 = tk.Label(self, text="Enter Desired Password:", relief="raised")
+        l3.pack(side="top", pady=(8, 4))
+        self.e3 = tk.Entry(self, show="*")
+        self.e3.pack(side="top", pady=(8, 8))
+
+        generate_password_button = tk.Button(self, text="Generate Password",
+                                             command=lambda: generate_and_display_password(self.e3))
+        generate_password_button.pack(side="top", pady=(5, 5))
+
+        show_password_button = tk.Button(self, text="Show Password", command=self.toggle_password_visibility)
+        show_password_button.pack(side="top", pady=(5, 5))
+
+        b = tk.Button(self, text="Submit", command=self.create_account)
+        b.pack(side="top")
+        self.bind("<Return>", lambda x: self.create_account())
+
+        back_button = tk.Button(self, text="Back", command=lambda: controller.show_frame("MainMenu"))
+        back_button.pack(side="top", pady=(8, 8))
+
+    def toggle_password_visibility(self):
+        if self.e3.cget('show') == '*':
+            self.e3.config(show='')
+            self.show_password_button.config(text='Hide Password')
+        else:
+            self.e3.config(show='*')
+            self.show_password_button.config(text='Show Password')
+
+    def create_account(self):
+        name = self.e1.get().strip()
+        oc = self.e2.get().strip()
+        pin = self.e3.get().strip()
+        acc_num = generate_account_number()
+        if not name or not oc or not pin:
+            messagebox.showerror("Error", "All fields are required")
+            return
+
+        if not is_number(oc):
+            messagebox.showerror("Error", "Opening deposit must be a number")
+            return
+
+        with open("accounts.txt", "a") as file:
+            file.write(f"{acc_num},{name},{oc},{pin}\n")
+
+        with open(f"{acc_num}_transactions.txt", "w") as file:
+            file.write(f"CREDIT: {oc}\n")  # Write opening deposit as a transaction entry
+
+        messagebox.showinfo("Success", f"Account created successfully. Your account number is {acc_num}")
+        self.controller.show_frame("MainMenu")
+
+class LoggedInMenu(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+        self.configure(background='#29c5f6')
+
+        l_title = tk.Message(self, text="TINKA BANK", relief="raised", width=2000, padx=600, pady=0, fg="white",
+                             bg="black", justify="center", anchor="center")
+        l_title.config(font=("Courier", "50", "bold"))
+        l_title.pack(side="top")
+
+        self.label = tk.Label(self, relief="raised", bg="black", fg="white", anchor="center", justify="center")
+        self.label.pack(side="top")
+
+        img2 = tk.PhotoImage(file="credit.gif.png")
+        myimg2 = img2.subsample(2, 2)
+        img3 = tk.PhotoImage(file="debit.gif.png")
+        myimg3 = img3.subsample(2, 2)
+        img4 = tk.PhotoImage(file="balance1.gif.png")
+        myimg4 = img4.subsample(2, 2)
+        img5 = tk.PhotoImage(file="transaction.gif.png")
+        myimg5 = img5.subsample(2, 2)
+        img6 = tk.PhotoImage(file="logout.gif.png")
+        myimg6 = img6.subsample(2, 2)
+
+        self.b2 = tk.Button(self, image=myimg2, command=lambda: self.deposit())
+        self.b2.image = myimg2
+        self.b3 = tk.Button(self, image=myimg3, command=lambda: self.withdraw())
+        self.b3.image = myimg3
+        self.b4 = tk.Button(self, image=myimg4, command=self.show_balance)
+        self.b4.image = myimg4
+        self.b5 = tk.Button(self, image=myimg5, command=lambda: self.show_transactions())
+        self.b5.image = myimg5
+        self.b6 = tk.Button(self, image=myimg6, command=self.logout)
+        self.b6.image = myimg6
+
+        self.b2.pack(side="top", padx=10)
+        self.b3.pack(side="top", padx=10)
+        self.b4.pack(side="top", padx=10)
+        self.b5.pack(side="top", padx=10)
+        self.b6.pack(side="top", padx=10)
+
+    def deposit(self):
+        self.controller.show_frame("DepositAmount")
+        self.enable_back_button()
+
+    def withdraw(self):
+        self.controller.show_frame("WithdrawAmount")
+        self.enable_back_button()
+
+    def show_balance(self):
+        balance = get_balance(self.accnt)
+        messagebox.showinfo("Balance", f"Your Balance is Rs.{balance}")
+        self.enable_back_button()
+
+    def show_transactions(self):
+        transactions = get_transaction_history(self.accnt)
+        self.controller.frames["TransactionHistory"].update_history(transactions)
+        self.controller.show_frame("TransactionHistory")
+        self.enable_back_button()
+
+    def logout(self):
+        self.controller.show_frame("MainMenu")
+
+    def set_user_info(self, accnt, name):
+        self.accnt = accnt
+        self.name = name
+        self.label.config(text="Welcome {}. Your account number is {}".format(name, accnt))
 
 
-def generate_and_display_password(entry_widget):
-    password = generate_password()
-    entry_widget.delete(0, tk.END)
-    entry_widget.insert(tk.END, password)
+class DepositAmount(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
 
+        l_title = tk.Message(self, text="TINKA BANK", relief="raised", width=2000, padx=600, pady=0, fg="white",
+                             bg="black", justify="center", anchor="center")
+        l_title.config(font=("Courier", "50", "bold"))
+        l_title.pack(side="top")
 
-def update_clock(label):
-    current_datetime = strftime('%Y-%m-%d %H:%M:%S')  # Format: YYYY-MM-DD HH:MM:SS
-    label.config(text=current_datetime)
-    label.after(1000, lambda: update_clock(label))
+        l1 = tk.Label(self, text="Enter Amount to be deposited:", relief="raised")
+        l1.pack(side="top", pady=(8, 4))
+        self.e1 = tk.Entry(self)
+        self.e1.pack(side="top", pady=(0, 5))
 
+        b = tk.Button(self, text="Submit", command=self.deposit_amount)
+        b.pack(side="top", pady=(5, 5))
 
-def crdt_write(master, amt, accnt, name):
-    if is_number(amt) == 0:
-        messagebox.showinfo("Error", "Invalid Credentials\nPlease try again.")
-        master.destroy()
-        return
+        back_button = tk.Button(self, text="Back", command=lambda: controller.show_frame("LoggedInMenu"))
+        back_button.pack(side="top", pady=(8, 8))
 
-    fdet = open(accnt + ".txt", 'r')
-    pin = fdet.readline()
-    camt = int(fdet.readline())
-    fdet.close()
-    amti = int(amt)
-    cb = amti + camt
-    fdet = open(accnt + ".txt", 'w')
-    fdet.write(pin)
-    fdet.write(str(cb) + "\n")
-    fdet.write(accnt + "\n")
-    fdet.write(name + "\n")
-    fdet.close()
-    frec = open(str(accnt) + "-rec.txt", 'a+')
-    frec.write(
-        str(strftime("[%Y-%m-%d] [%H:%M:%S]  ", gmtime())) + "     " + str(amti) + "              " + str(cb) + "\n")
-    frec.close()
-    messagebox.showinfo("Operation Successful!!", "Amount Deposited Successfully!!")
-    master.destroy()
+    def deposit_amount(self):
+        amount = self.e1.get().strip()
+        if not amount or not is_number(amount):
+            messagebox.showerror("Error", "Please enter a valid amount")
+            return
 
+        write_to_file(self.controller.frames["LoggedInMenu"].accnt, "CREDIT", amount)
+        messagebox.showinfo("Success", "Amount Deposited Successfully")
+        self.controller.show_frame("LoggedInMenu")
+
+class WithdrawAmount(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+
+        l_title = tk.Message(self, text="TINKA BANK", relief="raised", width=2000, padx=600, pady=0, fg="white",
+                             bg="black", justify="center", anchor="center")
+        l_title.config(font=("Courier", "50", "bold"))
+        l_title.pack(side="top")
+
+        l1 = tk.Label(self, text="Enter Amount to be withdrawn:", relief="raised")
+        l1.pack(side="top", pady=(8, 4))
+        self.e1 = tk.Entry(self)
+        self.e1.pack(side="top", pady=(0, 5))
+
+        b = tk.Button(self, text="Submit", command=self.withdraw_amount)
+        b.pack(side="top", pady=(5, 5))
+
+        back_button = tk.Button(self, text="Back", command=lambda: controller.show_frame("LoggedInMenu"))
+        back_button.pack(side="top", pady=(8, 8))
+
+    def withdraw_amount(self):
+        amount = self.e1.get().strip()
+        if not amount or not is_number(amount):
+            messagebox.showerror("Error", "Please enter a valid amount")
+            return
+
+        balance = get_balance(self.controller.frames["LoggedInMenu"].accnt)
+        if float(amount) > balance:
+            messagebox.showerror("Error", "Insufficient balance")
+            return
+
+        write_to_file(self.controller.frames["LoggedInMenu"].accnt, "DEBIT", amount)
+        messagebox.showinfo("Success", "Amount Withdrawn Successfully")
+        self.controller.show_frame("LoggedInMenu")
+
+class TransactionHistory(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+
+        l_title = tk.Message(self, text="TINKA BANK", relief="raised", width=2000, padx=600, pady=0, fg="white",
+                             bg="black", justify="center", anchor="center")
+        l_title.config(font=("Courier", "50", "bold"))
+        l_title.pack(side="top")
+
+        self.history_text = tk.Text(self)
+        self.history_text.pack(side="top")
+
+        b = tk.Button(self, text="Back", command=lambda: controller.show_frame("LoggedInMenu"))
+        b.pack(side="top", pady=(5, 5))
+
+        back_button = tk.Button(self, text="Back", command=lambda: controller.show_frame("LoggedInMenu"))
+        back_button.pack(side="top", pady=(8, 8))
+
+    def update_history(self, transactions):
+        self.history_text.delete(1.0, tk.END)
+        for transaction in transactions:
+            self.history_text.insert(tk.END, transaction + "\n")
 
 class ClockUpdater:
     def __init__(self, label):
         self.label = label
 
     def update_clock(self):
-        current_datetime = strftime('%Y-%m-%d %H:%M:%S')
-        self.label.config(text=current_datetime)
+        current_time = strftime("%Y-%m-%d %H:%M:%S", gmtime())
+        self.label.config(text=current_time)
         self.label.after(1000, self.update_clock)
 
+def generate_and_display_password(entry):
+    password = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+    entry.delete(0, tk.END)
+    entry.insert(0, password)
+    messagebox.showinfo("Generated Password", f"Your generated password is: {password}")
 
-def Main_Menu():
-    rootwn = tk.Tk()
-    rootwn.title("Tinka Bank")
-    rootwn.configure(background='#29c5f6')
-    # Load your logo image
-    logo_image = tk.PhotoImage(file="918b31fa5a4b49a982796ff43e74db92 (1).png")
-    # Create a Label to display the logo
-    logo_label = tk.Label(rootwn, image=logo_image, bg='#29c5f6')
-    logo_label.image = logo_image  # This line keeps a reference to the image to prevent it from being garbage collected
-    # Pack or grid the logo label as per your design
-    logo_label.pack(pady=10)
-    fr_buttons = tk.Frame(rootwn, bg="#29c5f6")
-    fr_buttons.pack(pady=20)
-    imgc = tk.PhotoImage(file="new.gif.png").subsample(2, 2)
-    imglog = tk.PhotoImage(file="login.gif.png").subsample(2, 2)
-    b1 = tk.Button(fr_buttons, image=imgc, command=Create)
-    b1.image = imgc
-    b2 = tk.Button(fr_buttons, image=imglog, command=lambda: log_in(rootwn))
-    b2.image = imglog
-    b1.grid(row=0, column=0, padx=20)
-    b2.grid(row=0, column=1, padx=20)
-    # Create an instance of ClockUpdater and pass the clock label to it
-    clock_label = tk.Label(rootwn, font=("Courier", 20), fg="white", bg="black")
-    clock_label.pack(pady=10)
-    clock_updater = ClockUpdater(clock_label)
-    clock_updater.update_clock()  # Start the clock update loop
+def write_to_file(acc_num, transaction_type, amount):
+    with open(f"{acc_num}_transactions.txt", "a") as file:
+        file.write(f"{transaction_type}: {amount}\n")
 
-    rootwn.mainloop()
+def check_acc_nmb(acc_num, pin):
+    if not os.path.exists("accounts.txt"):
+        return False
+    with open("accounts.txt", "r") as file:
+        for line in file:
+            data = line.strip().split(",")
+            if data[0] == acc_num and data[3] == pin:
+                return True
+    return False
 
+def is_number(s):
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
 
-Main_Menu()
+def generate_account_number():
+    return ''.join(random.choices(string.digits, k=10))
+
+def get_balance(acc_num):
+    balance = 0.0
+    with open(f"{acc_num}_transactions.txt", "r") as file:
+        for line in file:
+            if "CREDIT" in line:
+                balance += float(line.split(":")[1].strip())
+            elif "DEBIT" in line:
+                balance -= float(line.split(":")[1].strip())
+    return balance
+
+def get_transaction_history(acc_num):
+    transactions = []
+    with open(f"{acc_num}_transactions.txt", "r") as file:
+        transactions = file.readlines()
+    return transactions
+
+if __name__ == "__main__":
+    app = TinkaBankApp()
+    app.mainloop()
