@@ -4,6 +4,7 @@ from tkinter import messagebox
 import string
 import random
 import os
+import secrets
 
 class TinkaBankApp(tk.Tk):
     def __init__(self):
@@ -83,9 +84,6 @@ class Login(tk.Frame):
         b = tk.Button(self, text="Submit", command=self.check_log_in)
         b.pack(side="top", pady=(5, 5))
 
-        b1 = tk.Button(self, text="HOME", relief="raised", bg="black", fg="white", command=lambda: controller.show_frame("MainMenu"))
-        b1.pack(side="top", pady=(8, 8))
-
         back_button = tk.Button(self, text="Back", command=lambda: controller.show_frame("MainMenu"))
         back_button.pack(side="top", pady=(8, 8))
 
@@ -132,7 +130,7 @@ class CreateAccount(tk.Frame):
         self.e3.pack(side="top", pady=(8, 8))
 
         generate_password_button = tk.Button(self, text="Generate Password",
-                                             command=lambda: generate_and_display_password(self.e3))
+                                             command=lambda: self.generate_and_display_password(self.e3))
         generate_password_button.pack(side="top", pady=(5, 5))
 
         show_password_button = tk.Button(self, text="Show Password", command=self.toggle_password_visibility)
@@ -153,24 +151,59 @@ class CreateAccount(tk.Frame):
             self.e3.config(show='*')
             self.show_password_button.config(text='Show Password')
 
+    def generate_password(self):
+        # Define the character sets
+        lowercase_letters = string.ascii_lowercase
+        uppercase_letters = string.ascii_uppercase
+        digits = string.digits
+        symbols = string.punctuation
+
+        # Combine the character sets
+        characters = lowercase_letters + uppercase_letters + digits + symbols
+
+        # Generate a random password
+        password = ''.join(secrets.choice(characters) for _ in range(12))
+
+        return password
+
+    def generate_and_display_password(self, entry):
+        password = self.generate_password()
+        entry.delete(0, tk.END)
+        entry.insert(0, password)
+        messagebox.showinfo("Generated Password", f"Your generated password is: {password}")
+
     def create_account(self):
         name = self.e1.get().strip()
         oc = self.e2.get().strip()
         pin = self.e3.get().strip()
+
+        if is_number(name) or not is_number(oc) or len(pin) != 12 or not name:
+            messagebox.showinfo("Error", "Invalid Credentials\nPlease try again.")
+            return
+
+        with open("Accnt_Record.txt", 'r') as f1:
+            accnt_no = int(f1.readline().strip())
+        accnt_no += 1
+
+        with open("Accnt_Record.txt", 'w') as f1:
+            f1.write(str(accnt_no))
+
+        with open(f"{accnt_no}.txt", "w") as fdet:
+            fdet.write(f"{pin}\n")
+            fdet.write(f"{oc}\n")
+            fdet.write(f"{accnt_no}\n")
+            fdet.write(f"{name}\n")
+
+        with open(f"{accnt_no}-rec.txt", 'w') as frec:
+            frec.write(                "Date                             Credit      Debit     Balance\n")
+            frec.write(f"{strftime('[%Y-%m-%d] [%H:%M:%S]  ', gmtime())}     {oc}              {oc}\n")
+
         acc_num = generate_account_number()
-        if not name or not oc or not pin:
-            messagebox.showerror("Error", "All fields are required")
-            return
-
-        if not is_number(oc):
-            messagebox.showerror("Error", "Opening deposit must be a number")
-            return
-
         with open("accounts.txt", "a") as file:
             file.write(f"{acc_num},{name},{oc},{pin}\n")
 
         with open(f"{acc_num}_transactions.txt", "w") as file:
-            file.write(f"CREDIT: {oc}\n")  # Write opening deposit as a transaction entry
+            file.write(f"CREDIT: {oc}\n")
 
         messagebox.showinfo("Success", f"Account created successfully. Your account number is {acc_num}")
         self.controller.show_frame("MainMenu")
@@ -227,7 +260,7 @@ class LoggedInMenu(tk.Frame):
 
     def show_balance(self):
         balance = get_balance(self.accnt)
-        messagebox.showinfo("Balance", f"Your Balance is Rs.{balance}")
+        messagebox.showinfo("Balance", f"Your Balance is R. {balance}")
         self.enable_back_button()
 
     def show_transactions(self):
@@ -272,7 +305,7 @@ class DepositAmount(tk.Frame):
             messagebox.showerror("Error", "Please enter a valid amount")
             return
 
-        write_to_file(self.controller.frames["LoggedInMenu"].accnt, "CREDIT", amount)
+        write_to_file(self.controller.frames["LoggedInMenu"].accnt, "DEPOSITED", amount)
         messagebox.showinfo("Success", "Amount Deposited Successfully")
         self.controller.show_frame("LoggedInMenu")
 
@@ -308,7 +341,7 @@ class WithdrawAmount(tk.Frame):
             messagebox.showerror("Error", "Insufficient balance")
             return
 
-        write_to_file(self.controller.frames["LoggedInMenu"].accnt, "DEBIT", amount)
+        write_to_file(self.controller.frames["LoggedInMenu"].accnt, "WITHDRAWN", amount)
         messagebox.showinfo("Success", "Amount Withdrawn Successfully")
         self.controller.show_frame("LoggedInMenu")
 
